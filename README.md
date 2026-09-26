@@ -129,6 +129,10 @@ Before deploying, create a production database and apply the checked-in Prisma m
 
 This codebase has not been deployed yet. Hosting choices, account access, environment variables, and production database setup must be completed for the target accounts before there is a live URL.
 
+## Disclaimer
+
+Campus Queue was created by Irah Jane for school and educational purposes only. This project is intended for learning and demonstration purposes and is not intended for commercial or production use.
+
 ## License
 
 No license has been selected yet. Unless a license is added, others do not automatically receive permission to reuse, modify, or redistribute the project.
