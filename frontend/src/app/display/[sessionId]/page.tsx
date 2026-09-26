@@ -1,0 +1,10 @@
+import PublicQueueDisplay from "./public-queue-display";
+
+export default async function Page({
+  params,
+}: {
+  params: Promise<{ sessionId: string }>;
+}) {
+  const { sessionId } = await params;
+  return <PublicQueueDisplay sessionId={sessionId} />;
+}

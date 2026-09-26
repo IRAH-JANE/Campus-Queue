@@ -1,0 +1,259 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  STUDENT
+  STAFF
+  ADMIN
+}
+
+enum AppointmentStatus {
+  pending
+  approved
+  waiting
+  called
+  serving
+  served
+  skipped
+  cancelled
+  no_show
+}
+
+enum QueueSessionStatus {
+  OPEN
+  PAUSED
+  CLOSED
+}
+
+enum QueueTicketStatus {
+  WAITING
+  CALLED
+  SERVING
+  COMPLETED
+  SKIPPED
+  CANCELLED
+  NO_SHOW
+}
+
+model User {
+  id         String   @id @default(cuid())
+  fullName   String
+  email      String   @unique
+  password   String
+  role       Role     @default(STUDENT)
+  studentId  String?
+  employeeId String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  appointments       Appointment[]
+  officeAssignments  OfficeStaff[]
+  counterAssignments CounterStaff[]
+  queueTickets       QueueTicket[]  @relation("QueueStudent")
+  calledQueueTickets QueueTicket[]  @relation("QueueCaller")
+  servedQueueTickets QueueTicket[]  @relation("QueueServer")
+}
+
+model Office {
+  id          String   @id @default(cuid())
+  name        String
+  code        String   @unique
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  services         Service[]
+  appointments     Appointment[]
+  staffAssignments OfficeStaff[]
+  counters         Counter[]
+  queueSessions    QueueSession[]
+  officeHours      OfficeHours[]
+  closedDates      OfficeClosedDate[]
+}
+
+model OfficeHours {
+  id         String   @id @default(cuid())
+  officeId   String
+  dayOfWeek  Int
+  openTime   String?
+  closeTime  String?
+  isClosed   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  office Office @relation(fields: [officeId], references: [id], onDelete: Cascade)
+
+  @@unique([officeId, dayOfWeek])
+  @@index([officeId])
+}
+
+model OfficeClosedDate {
+  id         String   @id @default(cuid())
+  officeId   String
+  closedDate DateTime @db.Date
+  reason     String?  @db.VarChar(160)
+  createdAt  DateTime @default(now())
+
+  office Office @relation(fields: [officeId], references: [id], onDelete: Cascade)
+
+  @@unique([officeId, closedDate])
+  @@index([officeId, closedDate])
+}
+
+model Service {
+  id              String   @id @default(cuid())
+  officeId        String
+  name            String
+  description     String?
+  durationMinutes Int      @default(30)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  office        Office         @relation(fields: [officeId], references: [id])
+  appointments  Appointment[]
+  queueSessions QueueSession[]
+}
+
+model Appointment {
+  id              String            @id @default(cuid())
+  userId          String
+  officeId        String
+  serviceId       String
+  appointmentDate DateTime
+  appointmentTime String
+  queueNumber     String?
+  status          AppointmentStatus @default(pending)
+  purpose         String?
+  remarks         String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  user        User         @relation(fields: [userId], references: [id])
+  office      Office       @relation(fields: [officeId], references: [id])
+  service     Service      @relation(fields: [serviceId], references: [id])
+  queueTicket QueueTicket?
+
+  @@index([serviceId, appointmentDate, status])
+  @@index([userId, appointmentDate, status])
+}
+
+model OfficeStaff {
+  officeId  String
+  userId    String
+  createdAt DateTime @default(now())
+
+  office Office @relation(fields: [officeId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([officeId, userId])
+  @@index([userId])
+}
+
+model Counter {
+  id        String   @id @default(cuid())
+  officeId  String
+  name      String
+  code      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  office           Office         @relation(fields: [officeId], references: [id])
+  staffAssignments CounterStaff[]
+  queueTickets     QueueTicket[]
+
+  @@unique([officeId, code])
+  @@index([officeId, isActive])
+}
+
+model CounterStaff {
+  counterId String
+  userId    String
+  createdAt DateTime @default(now())
+
+  counter Counter @relation(fields: [counterId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([counterId, userId])
+  @@index([userId])
+}
+
+model QueueSession {
+  id          String             @id @default(cuid())
+  officeId    String
+  serviceId   String
+  sessionDate DateTime           @db.Date
+  queuePrefix String
+  lastNumber  Int                @default(0)
+  status      QueueSessionStatus @default(OPEN)
+  openedAt    DateTime           @default(now())
+  closedAt    DateTime?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  office  Office        @relation(fields: [officeId], references: [id])
+  service Service       @relation(fields: [serviceId], references: [id])
+  tickets QueueTicket[]
+
+  @@unique([officeId, serviceId, sessionDate])
+  @@index([sessionDate, status])
+}
+
+model QueueTicket {
+  id               String            @id @default(cuid())
+  sessionId        String
+  userId           String
+  appointmentId    String?           @unique
+  counterId        String?
+  calledById       String?
+  servedById       String?
+  sequence         Int
+  queueNumber      String
+  status           QueueTicketStatus @default(WAITING)
+  priority         Int               @default(0)
+  checkedInAt      DateTime          @default(now())
+  calledAt         DateTime?
+  servingStartedAt DateTime?
+  completedAt      DateTime?
+  cancelledAt      DateTime?
+  skippedAt        DateTime?
+  noShowAt         DateTime?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  session     QueueSession @relation(fields: [sessionId], references: [id])
+  user        User         @relation("QueueStudent", fields: [userId], references: [id])
+  appointment Appointment? @relation(fields: [appointmentId], references: [id])
+  counter     Counter?     @relation(fields: [counterId], references: [id])
+  calledBy    User?        @relation("QueueCaller", fields: [calledById], references: [id])
+  servedBy    User?        @relation("QueueServer", fields: [servedById], references: [id])
+
+  @@unique([sessionId, sequence])
+  @@unique([sessionId, queueNumber])
+  @@index([sessionId, status, priority, sequence])
+  @@index([userId, createdAt])
+  @@index([counterId, status])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model ActivityLog {
+  id          String   @id @default(cuid())
+  userId      String?
+  action      String
+  description String
+  createdAt   DateTime @default(now())
+}
